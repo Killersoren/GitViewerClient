@@ -16,7 +16,8 @@ function App() {
     <Router>
       <Routes>
             <Route path="/repo/:repoId" element={<RepoPage />} />       
-            <Route path="/user/:userId" element={<PublicUserRepos/>} />
+            <Route path="/user/:userId" element={<PublicUserRepos />} />
+            <Route path="/s/:shareLinkId" element={<PublicUserRepos />} />
 
             <Route path="/visitors" element={<VisitorsPage />} />
 

@@ -7,47 +7,79 @@ import { HttpStatusCode } from "axios";
 
 
 export default function PublicUserRepos() {
-  const { userId } = useParams<{ userId: string }>();
+  const {userId} = useParams<{ userId: string }>();
+  const { shareLinkId } = useParams<{ shareLinkId: string }>();
   const [repos, setRepos] = useState<Repository[]>([]);
   const [username, setUsername] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
 
-
   const openRepoInNewTab = (repoId: string) => {
     window.open(`/repo/${repoId}`, "_blank", "noopener,noreferrer");
-  }
+  };
+
+  const fetchUsernameByUserId = async (id: string) => {
+    try {
+      const usernameRes = await api.get(`/api/user/get-username?userId=${encodeURIComponent(id)}`);
+      setUsername(usernameRes.data || "Unknown User");
+    } catch (err: any) {
+      setUsername("Unknown User");
+    }
+  };
 
   useEffect(() => {
     const fetchRepos = async () => {
-      if (!userId) {
+      if (!userId && !shareLinkId) {
         setErrorStatus(400);
         setLoading(false);
         return;
       }
-
       setLoading(true);
       setErrorStatus(null);
+      setRepos([]);
+      setUsername("");
 
-      try {
-        const res = await api.get(`/api/Repo/get-all-public-user-repos?userId=${encodeURIComponent(userId)}`);
-        setRepos(res.data || []);
-      } catch (err: any) {
-        setErrorStatus(err.response?.status || null);
+      if (shareLinkId) {
+        try {
+          const res = await api.get(`/api/Repo/get-user-repos-from-sharelink?shareLinkId=${encodeURIComponent(shareLinkId!)}`);
+          const shareRepos = res.data || [];
+          setRepos(shareRepos);
+
+          const userIdRes = await api.get(`/api/User/get-userid-from-Sharelink?shareLinkId=${encodeURIComponent(shareLinkId!)}`);
+          const resolvedUserId = userIdRes.data || "";
+
+          if (resolvedUserId) {
+            await fetchUsernameByUserId(resolvedUserId);
+          } else {
+            setUsername("Unknown User");
+          }
+
+          setLoading(false);
+          return;
+        } catch (err: any) {
+          setErrorStatus(err.response?.status || null);
+        }
       }
 
-      try {
-        const res = await api.get(`/api/user/get-username?userId=${encodeURIComponent(userId)}`);
-        setUsername(res.data || "");
-      } catch (err: any) {
-        setUsername("Unknown User");
-      } finally {
-        setLoading(false);
+      if (userId) {
+        try {
+          const userReposRes = await api.get(`/api/Repo/get-all-public-user-repos?userId=${encodeURIComponent(userId)}`);
+          setRepos(userReposRes.data || []);
+          await fetchUsernameByUserId(userId);
+        } catch (err: any) {
+          setErrorStatus(err.response?.status || null);
+        } finally {
+          setLoading(false);
+        }
+        return;
       }
+
+      setErrorStatus(400);
+      setLoading(false);
     };
 
     void fetchRepos();
-  }, [userId]);
+  }, [userId, shareLinkId]);
 
   if (loading) return <p>Loading public repositories…</p>;
 
@@ -56,7 +88,7 @@ export default function PublicUserRepos() {
   if (errorStatus === HttpStatusCode.NotFound)
     return <p>User not found. The user might not exist.</p>;
   if (errorStatus === HttpStatusCode.BadRequest)
-    return <p>Bad request. Please check the user ID, you might not have used the complete URL.</p>;
+    return <p>Bad request. Please check the ID, you might not have used the complete URL.</p>;
 
   if (repos.length === 0) return <p>No public repositories found for this user.</p>;
 

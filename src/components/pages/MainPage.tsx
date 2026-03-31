@@ -2,6 +2,7 @@ import "../../App.css";
 import { useAuth } from '../authContext';
 import api from "../../api/axios";
 import UserRepos from "../RepoStuff/UserRepoListComponent";
+import ShareLinks from "../SharelinkStuff/ShareLinkListComponent";
 import VisitorsPage from "./VisitorsPage";
 import { useState } from 'react'
 import SeasonalImage from '../SeasonalImage';
@@ -9,7 +10,7 @@ import SeasonalImage from '../SeasonalImage';
 const MainPage: React.FC = () => {
 
   const { auth, setAuth } = useAuth();
-  const [popupType, setPopupType] = useState<'repositories' | 'visits' | null>("repositories");
+  const [popupType, setPopupType] = useState<'repositories' | 'visits' | 'Sharelinks' | null>("repositories");
   const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
 
   function handleLogout(){
@@ -28,7 +29,8 @@ const MainPage: React.FC = () => {
       alert("User ID not available");
       return;
     }
-    const publicLink = `${window.location.origin}/user/${auth.userId}`;
+    const userIdWithoutDashes = auth.userId.replace(/-/g, '');
+    const publicLink = `${window.location.origin}/user/${userIdWithoutDashes}`;
     navigator.clipboard.writeText(publicLink).then(() => {
       setCopiedUserId(auth.userId || null);
       setTimeout(() => setCopiedUserId(null), 2000);
@@ -54,6 +56,7 @@ const MainPage: React.FC = () => {
       </div>
 
       <button onClick={() => setPopupType('repositories')}>Repositories</button>
+      <button onClick={() => setPopupType('Sharelinks')}>Sharelinks</button>
       <button onClick={() => setPopupType('visits')}>Visits</button>
 
       <div>
@@ -69,6 +72,7 @@ const MainPage: React.FC = () => {
       </div>
 
       <div>
+        {popupType === 'Sharelinks' && <ShareLinks/>}
         {popupType === 'repositories' && <UserRepos/>}
         {popupType === 'visits' && <VisitorsPage/>}
       </div>
