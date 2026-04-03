@@ -45,6 +45,8 @@ export default function PublicUserRepos() {
           const shareRepos = res.data || [];
           setRepos(shareRepos);
 
+          localStorage.setItem("shareLinkId", shareLinkId!);
+
           const userIdRes = await api.get(`/api/User/get-userid-from-Sharelink?shareLinkId=${encodeURIComponent(shareLinkId!)}`);
           const resolvedUserId = userIdRes.data || "";
 

@@ -15,9 +15,13 @@ const RepoPage = () => {
   useEffect(() => {
     const fetchRepo = async () => {
       try {
-        const res = await api.get(`/api/Repo/get-single-repo`, {
-          params: { repoId }
-        });
+        const shareLinkId =  localStorage.getItem("shareLinkId");
+        const params: { repoId: string; shareLinkId?: string } = { repoId: repoId! };
+        if (shareLinkId) {
+          params.shareLinkId = shareLinkId;
+        }
+        
+        const res = await api.get(`/api/Repo/get-single-repo`, { params });
         setRepo(res.data);
         setUser(res.data.userId);
         setErrorStatus(null);
