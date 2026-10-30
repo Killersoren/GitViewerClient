@@ -12,6 +12,7 @@ interface RemoveShareLinkComponentProps {
 const RemoveShareLinkComponent: React.FC<RemoveShareLinkComponentProps> = ({ shareLinkId: ShareLinkId, onSuccess, refreshShareLinks: refreshShareLinks }) => {
   const { isProcessing, setIsProcessing } = useAuth();
   const handleRemove = async () => {
+    if (!window.confirm("Delete this sharelink? This action cannot be undone.")) return;
     setIsProcessing(true);
     try {
       const token = localStorage.getItem("accessToken");
@@ -30,7 +31,7 @@ const RemoveShareLinkComponent: React.FC<RemoveShareLinkComponentProps> = ({ sha
       console.log("Sharelink removed " + ShareLinkId);
       if (refreshShareLinks) refreshShareLinks();
       if (onSuccess) onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
         console.error('Sharelink deletion error:', error.response?.data || error.message);
         alert('Sharelink deletion failed: ' + (error.response?.data?.message || 'Please try again.'));
@@ -44,7 +45,7 @@ const RemoveShareLinkComponent: React.FC<RemoveShareLinkComponentProps> = ({ sha
   };
 
   return (
-    <button onClick={handleRemove} disabled={isProcessing}>
+    <button className="button button-danger" onClick={handleRemove} disabled={isProcessing}>
       Delete Sharelink
     </button>
   );

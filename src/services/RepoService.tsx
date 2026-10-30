@@ -22,7 +22,7 @@ export async function createAndCloneRepo(source: string): Promise<CreateAndClone
       const errMsg = axios.isAxiosError(cloneErr) ? (cloneErr.response?.data?.message || cloneErr.message) : String(cloneErr);
 
       if (source.startsWith("http://") || source.startsWith("https://")) {
-        const message = `Cloning failed. The repository might be private or the URL is incorrect. Try using an SSH URL.\n\nError: ${errMsg}`;
+        const message = `Cloning failed. The repository might be private or the URL is incorrect. Try converting the URL to an SSH URL with the button below.\n\nError: ${errMsg}`;
     
         return { repo, message, status: "CloneFailed" };
       }

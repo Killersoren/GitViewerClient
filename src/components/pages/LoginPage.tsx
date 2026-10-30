@@ -12,19 +12,21 @@ const LoginPage: React.FC = () => {
      };
 
   return (
-    <>
-      <h1>Omegacentralen - GitViewer</h1>
+    <main className="login-page">
+      <div className="login-page-content">
+        <h1>Omegacentralen - GitViewer</h1>
 
-      <div className="card">
-        <button onClick={() => setPopupType('login')}>Login</button>
-        <button onClick={() => setPopupType('register')}>Register</button>
+        <div className="card">
+          <button onClick={() => setPopupType('login')}>Login</button>
+          <button onClick={() => setPopupType('register')}>Register</button>
 
-        {popupType === 'login' && <LoginComponent toggle={togglePop} />}
-        {popupType === 'register' && <RegisterComponent toggle={togglePop} />}
+          {popupType === 'login' && <LoginComponent toggle={togglePop} />}
+          {popupType === 'register' && <RegisterComponent toggle={togglePop} />}
+        </div>
+        <br/>
+        <SeasonalImage imageKey="TorbenHD" className="logo" alt="Torben logo" />
       </div>
-      <br/>
-      <SeasonalImage imageKey="TorbenHD" className="logo" alt="Torben logo" />
-      </>
+    </main>
   )
 }
 

@@ -7,7 +7,31 @@ import CloneRepository from "./CloneRepository";
 import ConvertToSSh from "./ConvertToSSH";
 import { useAuth } from "../authContext";
 
-// Shows additional information and actions for a selected repository
+function getGitHubDeployKeysUrl(source: string): string | null {
+  try {
+    let repositoryUrl: URL;
+    const scpUrl = source.match(/^git@([^:]+):(.+)$/);
+    if (scpUrl) {
+      repositoryUrl = new URL(`https://${scpUrl[1]}/${scpUrl[2]}`);
+    } else {
+      repositoryUrl = new URL(source);
+    }
+
+    if (repositoryUrl.hostname !== "github.com") return null;
+
+    const pathParts = repositoryUrl.pathname.split("/").filter(Boolean);
+    if (pathParts.length !== 2) return null;
+
+    const [owner, repository] = pathParts;
+    const repositoryName = repository.replace(/\.git$/i, "");
+    if (!repositoryName) return null;
+
+    return `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repositoryName)}/settings/keys/new`;
+  } catch {
+    return null;
+  }
+}
+
 interface Props {
   repo: Repository;
   onClose: () => void;
@@ -16,132 +40,204 @@ interface Props {
   closeParent?: () => void;
 }
 
-export const RepoDetailsComponent: React.FC<Props> = ({ repo, onClose, refreshRepos, message, closeParent }) => {
+export const RepoDetailsComponent: React.FC<Props> = ({
+  repo,
+  onClose,
+  refreshRepos,
+  message,
+  closeParent,
+}) => {
   const [deployKey, setDeployKey] = useState<string | null>(null);
+  const [visibilityError, setVisibilityError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [copiedDeployKey, setCopiedDeployKey] = useState(false);
+  const [deployKeyCopyError, setDeployKeyCopyError] = useState<string | null>(null);
   const { isProcessing } = useAuth();
 
-  const handleOpenTree = () => {
-    window.open(`/repo/${repo.id}`, "_blank", "noopener,noreferrer");
-  };
-
-  const status = (repo as any)?.status;
-  const repoMessage = message ?? (repo as any)?.message ?? null;
-  const isHttps =
-    typeof repo.source === "string" && (repo.source.startsWith("http://") || repo.source.startsWith("https://"));
-  const isSsh = typeof repo.source === "string" && (repo.source.startsWith("git@") || repo.source.startsWith("ssh://"));
-
-
-    async function fetchDeployKey() {
-    if (!isSsh) return;
-    const cached = sessionStorage.getItem(`deployKey:${repo.id}`);
-    if (cached) {
-      setDeployKey(cached);
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem("accessToken");
-      const res = await api.post(`/api/Repo/generate-deploy-key?repoId=${repo.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const key = res.data?.publicKey ?? res.data?.publickey ?? null;
-      if (key) {
-        setDeployKey(key);
-        sessionStorage.setItem(`deployKey:${repo.id}`, key);
-      }
-    } catch (err: any) {
-      
-      if (axios.isAxiosError(err) && err.response?.status === 404) {
-
-
-      } else {
-        console.error("Failed to fetch deploy key:", err);
-      }
-    } 
-  }
+  const status = repo.status;
+  const repoMessage = message ?? repo.message ?? null;
+  const isHttps = /^https?:\/\//i.test(repo.source);
+  const isSsh = repo.source.startsWith("git@") || repo.source.startsWith("ssh://");
+  const deployKeysUrl = getGitHubDeployKeysUrl(repo.source);
 
   useEffect(() => {
-    fetchDeployKey();
-  }, [repo.id]);
+    let active = true;
 
-  const handleCloseAll = () => {
+    async function fetchDeployKey() {
+      if (!isSsh) return;
+      const cached = sessionStorage.getItem(`deployKey:${repo.id}`);
+      if (cached) {
+        setDeployKey(cached);
+        return;
+      }
+
+      try {
+        const res = await api.post(`/api/Repo/generate-deploy-key?repoId=${repo.id}`);
+        const key = res.data?.publicKey ?? res.data?.publickey ?? null;
+        if (key && active) {
+          setDeployKey(key);
+          sessionStorage.setItem(`deployKey:${repo.id}`, key);
+        }
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response?.status !== 404) {
+          console.error("Failed to fetch deploy key:", err);
+        }
+      }
+    }
+
+    void fetchDeployKey();
+    return () => {
+      active = false;
+    };
+  }, [isSsh, repo.id]);
+
+  function handleCloseAll() {
     onClose();
-    if (closeParent) closeParent();
-  };
+    closeParent?.();
+  }
+
+  async function handleToggleVisibility() {
+    setVisibilityError(null);
+    try {
+      await api.post(`/api/Repo/toggle-public?repoId=${repo.id}&isPublic=${!repo.isPublic}`, {});
+      refreshRepos?.();
+      onClose();
+    } catch (error) {
+      console.error("Failed to update repository visibility", error);
+      setVisibilityError("Could not update repository visibility. Please try again.");
+    }
+  }
+
+  async function handleCopyLink() {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/repo/${repo.id}`);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy repository link", error);
+      setVisibilityError("Could not copy the repository link. Check clipboard permissions and try again.");
+    }
+  }
+
+  async function handleCopyDeployKey() {
+    if (!deployKey) return;
+    setDeployKeyCopyError(null);
+    try {
+      await navigator.clipboard.writeText(deployKey);
+      setCopiedDeployKey(true);
+      window.setTimeout(() => setCopiedDeployKey(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy deploy key", error);
+      setDeployKeyCopyError("Could not copy the SSH key. Check clipboard permissions and try again.");
+    }
+  }
+
+  function handleBackdropClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (event.target === event.currentTarget && !isProcessing) handleCloseAll();
+  }
 
   return (
-    <div className="popup">
-      <div className="popup-inner">
-        <h2>{repo.name}</h2>
-        <p><strong>Name:</strong> {repo.name}</p>
-        <p><strong>Source URL:</strong> {repo.source}</p>
-        <p><strong>Created:</strong> {new Date(repo.created).toLocaleString()}</p>
-        <p><strong>Updated:</strong> {new Date(repo.updated).toLocaleString()}</p>
-        <p><strong>Sharable:</strong> {repo.isPublic ? "Yes" : "No"}</p>
+    <div className="popup" onMouseDown={handleBackdropClick}>
+      <div className="popup-inner" role="dialog" aria-modal="true" aria-labelledby="repo-detail-title">
+        <button
+          className="dialog-close"
+          type="button"
+          onClick={handleCloseAll}
+          disabled={isProcessing}
+          aria-label="Close repository details"
+        >
+          ×
+        </button>
+        <span className="eyebrow">Repository details</span>
+        <h2 id="repo-detail-title">{repo.name}</h2>
+
+        <dl className="detail-grid">
+          <dt>Source</dt>
+          <dd title={repo.source}>{repo.source}</dd>
+          <dt>Created</dt>
+          <dd>{new Date(repo.created).toLocaleString("sv-SE")}</dd>
+          <dt>Last updated</dt>
+          <dd>{new Date(repo.updated).toLocaleString("sv-SE")}</dd>
+          <dt>Visibility</dt>
+          <dd>
+            <span className={`status-badge ${repo.isPublic ? "status-public" : "status-private"}`}>
+              {repo.isPublic ? "Public" : "Private"}
+            </span>
+          </dd>
+        </dl>
 
         {status === "CloneFailed" && (
-          <div style={{ marginTop: "1rem", padding: "1rem", border: "1px solid #b30000", backgroundColor: "#360000ff" }}>
-            <strong>Attention:</strong>
-            <p>{repoMessage ?? "Repository clone failed."}</p>
-
-            {isHttps && (
-              <p>
-                Cloning failed. The repository might be private or the URL is incorrect. You can convert it to an SSH link using the button.
-              </p>
-            )}
-
-            {isSsh && (
+          <div className="alert-box" role="status">
+            <strong>Repository build failed</strong>
+            <p>{repoMessage ?? "The repository could not be cloned."}</p>
+            {isHttps && <p>Check that the URL is correct and that the repository is accessible. Try converting the URL to an SSH URL with the button below, if the repository is private.</p>}
+            {isSsh && deployKey && (
               <>
-                <p>
-                  Cloning failed. A deploy key has been generated. Please add the following deploy key to your repository:
-                  {deployKey}
-                </p>
+                <p>Add this deploy key to your Git hosting provider, then try building again.</p>
+                <code>{deployKey}</code>
+                <div className="detail-actions">
+                  <button className="button button-secondary" type="button" onClick={handleCopyDeployKey}>
+                    {copiedDeployKey ? "Key copied" : "Copy SSH key"}
+                  </button>
+                  {deployKeysUrl && (
+                    <a
+                      className="button button-secondary"
+                      href={deployKeysUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Open GitHub deploy keys
+                    </a>
+                  )}
+                </div>
+                {deployKeyCopyError && <p role="alert">{deployKeyCopyError}</p>}
               </>
             )}
           </div>
         )}
-
-        {message && (
-          <div style={{ marginTop: "1rem", padding: "1rem", border: "1px solid red", backgroundColor: "#360000ff" }}>
-            <strong>Attention:</strong>
-            <p>{message}</p>
-          </div>
+        {message && status !== "CloneFailed" && (
+          <div className="alert-box" role="alert">{message}</div>
         )}
+        {visibilityError && <p className="error-state" role="alert">{visibilityError}</p>}
 
-        <RemoveRepoComponent
-          repoId={repo.id}
-          onSuccess={() => {
-            onClose();
-            setTimeout(() => {
-              if (refreshRepos) refreshRepos();
-            }, 100);
-          }}
-        />
-
-        <CloneRepository
-          repoId={repo.id}
-          onSuccess={() => {
-            onClose();
-            setTimeout(() => {
-              if (refreshRepos) refreshRepos();
-            }, 100);
-          }}
-        />
-
-        <ConvertToSSh
-          repoId={repo.id}
-          repoSource={repo.source}
-          onSuccess={() => {
-            handleCloseAll();
-            setTimeout(() => {
-              if (refreshRepos) refreshRepos();
-            }, 100);
-          }}
-        />
-
-        <button onClick={handleOpenTree} disabled={isProcessing}>View</button>
-        <button onClick={handleCloseAll} disabled={isProcessing}>Close</button>
-        {isProcessing && <div>Processing...</div>}
+        <div className="detail-actions">
+          <button className="button button-primary" onClick={() => window.open(`/repo/${repo.id}`, "_blank", "noopener,noreferrer")}>
+            View repository
+          </button>
+          <button className="button button-secondary" onClick={handleCopyLink}>
+            {copied ? "Link copied" : "Copy link"}
+          </button>
+            {!isSsh && status === "CloneFailed" && (
+              <ConvertToSSh
+                repoId={repo.id}
+                repoSource={repo.source}
+                onSuccess={() => {
+                  handleCloseAll();
+                  refreshRepos?.();
+                }}
+              />
+            )}
+          <div className="action-menu-content">
+            <CloneRepository
+              repoId={repo.id}
+              onSuccess={() => {
+                onClose();
+                refreshRepos?.();
+              }}
+            />
+            <button className="button button-secondary" onClick={handleToggleVisibility} disabled={isProcessing}>
+              Make {repo.isPublic ? "private" : "public"}
+            </button>
+            <RemoveRepoComponent
+              repoId={repo.id}
+              onSuccess={() => {
+                onClose();
+                refreshRepos?.();
+              }}
+            />
+          </div>
+        </div>
+        {isProcessing && <p className="loading-state">Working…</p>}
       </div>
     </div>
   );

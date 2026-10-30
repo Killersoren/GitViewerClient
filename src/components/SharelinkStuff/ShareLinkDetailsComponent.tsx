@@ -1,9 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import RemoveShareLinkComponent from "./RemoveShareLinkComponent";
 import type { ShareLink } from "../../types/ShareLink";
 import { useAuth } from "../authContext";
 
-// Shows additional information and actions for a selected repository
 interface Props {
   shareLink: ShareLink;
   onClose: () => void;
@@ -12,43 +11,75 @@ interface Props {
   closeParent?: () => void;
 }
 
-export const ShareLinkDetailsComponent: React.FC<Props> = ({ shareLink: shareLink, onClose, refreshShareLinks: refreshShareLinks, message, closeParent }) => {
+export const ShareLinkDetailsComponent: React.FC<Props> = ({
+  shareLink,
+  onClose,
+  refreshShareLinks,
+  message,
+  closeParent,
+}) => {
+  const [copied, setCopied] = useState(false);
   const { isProcessing } = useAuth();
 
-  const handleCloseAll = () => {
+  function handleCloseAll() {
     onClose();
-    if (closeParent) closeParent();
-  };
+    closeParent?.();
+  }
+
+  async function handleCopyLink() {
+    try {
+      const id = shareLink.id.replace(/-/g, "");
+      await navigator.clipboard.writeText(`${window.location.origin}/s/${id}`);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy sharelink", error);
+    }
+  }
+
+  function handleBackdropClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (event.target === event.currentTarget && !isProcessing) handleCloseAll();
+  }
 
   return (
-    <div className="popup">
-      <div className="popup-inner">
-        <h2>{shareLink.name}</h2>
-        <p><strong>Name:</strong> {shareLink.name}</p>
-        <p><strong>Created:</strong> {new Date(shareLink.created).toLocaleString()}</p>
-        <p><strong>Expiry date:</strong> {shareLink.expiryTime ? new Date(shareLink.expiryTime).toLocaleString() : "Never"}</p>
+    <div className="popup" onMouseDown={handleBackdropClick}>
+      <div className="popup-inner" role="dialog" aria-modal="true" aria-labelledby="share-link-detail-title">
+        <button
+          className="dialog-close"
+          type="button"
+          onClick={handleCloseAll}
+          disabled={isProcessing}
+          aria-label="Close sharelink details"
+        >
+          ×
+        </button>
+        <span className="eyebrow">sharelink details</span>
+        <h2 id="share-link-detail-title">{shareLink.name}</h2>
+        <dl className="detail-grid">
+          <dt>Created</dt>
+          <dd>{new Date(shareLink.created).toLocaleString("sv-SE")}</dd>
+          <dt>Expires</dt>
+          <dd>{shareLink.expiryTime ? new Date(shareLink.expiryTime).toLocaleString("sv-SE") : "Never"}</dd>
+        </dl>
 
+        {message && <div className="alert-box" role="alert">{message}</div>}
 
-        {message && (
-          <div style={{ marginTop: "1rem", padding: "1rem", border: "1px solid red", backgroundColor: "#360000ff" }}>
-            <strong>Attention:</strong>
-            <p>{message}</p>
-          </div>
-        )}
-
-        <RemoveShareLinkComponent
-          shareLinkId={shareLink.id}
-          onSuccess={() => {
-            onClose();
-            setTimeout(() => {
-              if (refreshShareLinks) refreshShareLinks();
-            }, 100);
-          }}
-        />
-
-
-        <button onClick={handleCloseAll} disabled={isProcessing}>Close</button>
-        {isProcessing && <div>Processing...</div>}
+        <div className="detail-actions">
+          <button className="button button-primary" onClick={handleCopyLink}>
+            {copied ? "Link copied" : "Copy sharelink"}
+          </button>
+            <RemoveShareLinkComponent
+              shareLinkId={shareLink.id}
+              onSuccess={() => {
+                onClose();
+                refreshShareLinks?.();
+              }}
+            />
+          <button className="button button-secondary" onClick={handleCloseAll} disabled={isProcessing}>
+            Done
+          </button>
+        </div>
+        {isProcessing && <p className="loading-state">Working…</p>}
       </div>
     </div>
   );
