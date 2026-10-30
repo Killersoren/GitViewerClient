@@ -33,7 +33,7 @@ export const ShareLinkDetailsComponent: React.FC<Props> = ({
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      console.error("Failed to copy share link", error);
+      console.error("Failed to copy sharelink", error);
     }
   }
 
@@ -49,11 +49,11 @@ export const ShareLinkDetailsComponent: React.FC<Props> = ({
           type="button"
           onClick={handleCloseAll}
           disabled={isProcessing}
-          aria-label="Close share link details"
+          aria-label="Close sharelink details"
         >
           ×
         </button>
-        <span className="eyebrow">Share link details</span>
+        <span className="eyebrow">sharelink details</span>
         <h2 id="share-link-detail-title">{shareLink.name}</h2>
         <dl className="detail-grid">
           <dt>Created</dt>
@@ -66,7 +66,7 @@ export const ShareLinkDetailsComponent: React.FC<Props> = ({
 
         <div className="detail-actions">
           <button className="button button-primary" onClick={handleCopyLink}>
-            {copied ? "Link copied" : "Copy share link"}
+            {copied ? "Link copied" : "Copy sharelink"}
           </button>
             <RemoveShareLinkComponent
               shareLinkId={shareLink.id}

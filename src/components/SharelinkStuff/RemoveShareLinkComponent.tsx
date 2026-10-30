@@ -12,7 +12,7 @@ interface RemoveShareLinkComponentProps {
 const RemoveShareLinkComponent: React.FC<RemoveShareLinkComponentProps> = ({ shareLinkId: ShareLinkId, onSuccess, refreshShareLinks: refreshShareLinks }) => {
   const { isProcessing, setIsProcessing } = useAuth();
   const handleRemove = async () => {
-    if (!window.confirm("Delete this share link? This action cannot be undone.")) return;
+    if (!window.confirm("Delete this sharelink? This action cannot be undone.")) return;
     setIsProcessing(true);
     try {
       const token = localStorage.getItem("accessToken");

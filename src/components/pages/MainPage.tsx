@@ -10,7 +10,7 @@ type DashboardSection = "repositories" | "sharelinks" | "visits";
 
 const sections: { id: DashboardSection; label: string; description: string }[] = [
   { id: "repositories", label: "Repositories", description: "Browse and manage your repositories." },
-  { id: "sharelinks", label: "Share links", description: "Create and manage sharelinks for different purposes. Ex different companies or people." },
+  { id: "sharelinks", label: "Sharelinks", description: "Create and manage sharelinks for different purposes. Ex different companies or people." },
   { id: "visits", label: "Visits", description: "See recent visits to your shared repositories." },
 ];
 

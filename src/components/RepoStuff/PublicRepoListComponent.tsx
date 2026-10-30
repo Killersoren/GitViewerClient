@@ -92,7 +92,7 @@ export default function PublicUserRepos() {
   if (errorStatus === HttpStatusCode.Unauthorized) {
     errorMessage = "You do not have access to view these repositories. Log in or ask the owner to grant you access.";
   } else if (errorStatus === HttpStatusCode.NotFound) {
-    errorMessage = "The user or share link could not be found.";
+    errorMessage = "The user or sharelink could not be found.";
   } else if (errorStatus === HttpStatusCode.BadRequest) {
     errorMessage = "The link is invalid. Please check that you have the complete URL.";
   } else if (errorStatus !== null) {
