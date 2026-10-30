@@ -1,117 +1,145 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "../../api/axios";
 import CreateRepoComponent from "./CreateRepoComponent";
-import {RepoDetailsComponent} from "./RepoDetailsComponent";
-import type {Repository} from "../../types/Repository"
+import { RepoDetailsComponent } from "./RepoDetailsComponent";
+import type { Repository } from "../../types/Repository";
 
 export default function UserRepos() {
   const [repos, setRepos] = useState<Repository[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
-  const [popupType, setPopupType] = useState<'seeRepos' | 'createRepo' | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [copiedRepoId, setCopiedRepoId] = useState<string | null>(null);
+  const [visibilityError, setVisibilityError] = useState<string | null>(null);
 
-  function togglePop () {
-    setPopupType(null)
-  };
-    
-      const fetchRepos = async () => {
-      try {
-        const token = localStorage.getItem("token");
-
-        const response = await api.get("/api/Repo/get-all-user-repos", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        setRepos(response.data);
-      } catch (err: any) {
-        setError(err.response?.data || "Failed to fetch repositories");
-      }
-    };
-
-  useEffect(() => {
-    fetchRepos();
+  const fetchRepos = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await api.get<Repository[]>("/api/Repo/get-all-user-repos");
+      setRepos(response.data);
+    } catch (err) {
+      console.error("Failed to fetch repositories", err);
+      setError("Could not load repositories. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  if (error) return <p>Error: {error}</p>;
+  useEffect(() => {
+    void fetchRepos();
+  }, [fetchRepos]);
+
+  function closeCreateDialog() {
+    setIsCreating(false);
+  }
+
+  async function handleCopyRepoLink(repo: Repository) {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/repo/${repo.id}`);
+      setCopiedRepoId(repo.id);
+      window.setTimeout(() => setCopiedRepoId(null), 2000);
+    } catch (copyError) {
+      console.error("Failed to copy repository link", copyError);
+      setVisibilityError("Could not copy the repository link. Check clipboard permissions and try again.");
+    }
+  }
+
+  async function handleToggleVisibility(repo: Repository) {
+    setVisibilityError(null);
+    try {
+      const newIsPublic = !repo.isPublic;
+      await api.post(`/api/Repo/toggle-public?repoId=${repo.id}&isPublic=${newIsPublic}`, {});
+      setRepos((currentRepos) =>
+        currentRepos.map((currentRepo) =>
+          currentRepo.id === repo.id ? { ...currentRepo, isPublic: newIsPublic } : currentRepo
+        )
+      );
+    } catch (requestError) {
+      console.error("Failed to update repository visibility", requestError);
+      setVisibilityError(`Could not change visibility for ${repo.name}. Please try again.`);
+    }
+  }
 
   return (
     <div>
-      <h2>Your Repositories</h2>
-      <button onClick={() => setPopupType('createRepo')}>Add repository</button>
-      {popupType === 'createRepo' && <CreateRepoComponent toggle={togglePop} refreshRepos={fetchRepos}/>}
-      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
-        <thead style={{ backgroundColor: "#4d0a54ff" }}>
-          <tr>
-            <th style={{ textAlign: "left", padding: "12px" }}>Name</th>
-            <th style={{ textAlign: "left", padding: "12px" }}>Source</th>
-            <th style={{ textAlign: "left", padding: "12px" }}>Created</th>
-            <th style={{ textAlign: "left", padding: "12px" }}>Share</th>
-            <th style={{ textAlign: "left", padding: "12px" }}>Repository status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {repos.map((repo) => (
-            <tr
-              key={repo.id}
-              onClick={()=> setSelectedRepo(repo)}
-              className="repo-row"
-              style={{
-                cursor: "pointer",
-                borderBottom: "1px solid #e0e0e0",
-              }}
-            >
-              <td style={{ padding: "12px" }}>{repo.name}</td>
-              <td style={{ padding: "12px" }}>{repo.source}</td>
-              <td style={{ padding: "12px" }}>{new Date(repo.created).toLocaleDateString()}</td>
-              <td style={{ padding: "12px" }}>
-                <button
-                  onClick={async (e) => {
-                    e.stopPropagation(); // prevents row click
-                    const link = `/repo/${repo.id}`;
-                    await navigator.clipboard.writeText(window.location.origin + link);
-                    setCopiedRepoId(repo.id); // Set the copied repo id
-                  }}
-                >
-                  {copiedRepoId === repo.id ? "Link copied" : "Share"}
-                </button>
-              </td>
-              <td style={{ padding: "12px" }}>
-                <button
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    try {
-                      const token = localStorage.getItem("token");
-                      
-                      const newIsPublic = !repo.isPublic;
-                      await api.post(
-                        `/api/Repo/toggle-public?repoId=${repo.id}&isPublic=${newIsPublic}`,
-                        {},
-                        {
-                          headers: {
-                            Authorization: `Bearer ${token}`,
-                          },
-                        }
-                      );
-                      setRepos((prev) =>
-                        prev.map((r) =>
-                          r.id === repo.id ? { ...r, isPublic: newIsPublic } : r
-                        )
-                      );
-                    } catch (err: any) {
-                      alert("Failed to toggle public state");
+      <div className="list-heading">
+        <button className="button button-primary" onClick={() => setIsCreating(true)}>
+          Add repository
+        </button>
+      </div>
+
+      {error && <p className="error-state" role="alert">{error}</p>}
+      {visibilityError && <p className="error-state" role="alert">{visibilityError}</p>}
+      {isLoading && <p className="loading-state">Loading repositories…</p>}
+      {!isLoading && !error && repos.length === 0 && (
+        <p className="empty-state">No repositories yet. Add one to get started.</p>
+      )}
+      {!isLoading && !error && repos.length > 0 && (
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Source</th>
+                <th scope="col">Created</th>
+                <th scope="col">Share</th>
+                <th scope="col">Repository status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {repos.map((repo) => (
+                <tr
+                  key={repo.id}
+                  tabIndex={0}
+                  onClick={() => setSelectedRepo(repo)}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelectedRepo(repo);
                     }
                   }}
+                  aria-label={`View ${repo.name} repository details`}
                 >
-                  {repo.isPublic ? "Public" : "Private"}
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                  <td>
+                    <span className="table-primary">
+                      {repo.name}
+                    </span>
+                  </td>
+                  <td><span className="table-secondary" title={repo.source}>{repo.source}</span></td>
+                  <td>{new Date(repo.created).toLocaleDateString("sv-SE")}</td>
+                  <td>
+                    <button
+                      className="button button-secondary table-action"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleCopyRepoLink(repo);
+                      }}
+                    >
+                      {copiedRepoId === repo.id ? "Link copied" : "Share"}
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      className={`button table-action ${repo.isPublic ? "button-public" : "button-private"}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleToggleVisibility(repo);
+                      }}
+                    >
+                      {repo.isPublic ? "Public" : "Private"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {isCreating && <CreateRepoComponent toggle={closeCreateDialog} refreshRepos={fetchRepos} />}
       {selectedRepo && (
         <RepoDetailsComponent
           repo={selectedRepo}
@@ -119,6 +147,6 @@ export default function UserRepos() {
           refreshRepos={fetchRepos}
         />
       )}
-    </div>    
+    </div>
   );
 }

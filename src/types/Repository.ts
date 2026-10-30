@@ -6,5 +6,6 @@ export type Repository = {
   created: string;
   updated: string;
   isPublic: boolean;
+  status?: string;
   message?: string;
 };

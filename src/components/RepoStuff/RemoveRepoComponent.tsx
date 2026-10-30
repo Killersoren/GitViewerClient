@@ -12,6 +12,7 @@ interface RemoveRepoComponentProps {
 const RemoveRepoComponent: React.FC<RemoveRepoComponentProps> = ({ repoId, onSuccess, refreshRepos }) => {
   const { isProcessing, setIsProcessing } = useAuth();
   const handleRemove = async () => {
+    if (!window.confirm("Delete this repository? This action cannot be undone.")) return;
     setIsProcessing(true);
     try {
       const token = localStorage.getItem("accessToken");
@@ -30,7 +31,7 @@ const RemoveRepoComponent: React.FC<RemoveRepoComponentProps> = ({ repoId, onSuc
       console.log("Repository removed " + repoId);
       if (refreshRepos) refreshRepos();
       if (onSuccess) onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
         console.error('Repo deletion error:', error.response?.data || error.message);
         alert('Repo deletion failed: ' + (error.response?.data?.message || 'Please try again.'));
@@ -44,8 +45,8 @@ const RemoveRepoComponent: React.FC<RemoveRepoComponentProps> = ({ repoId, onSuc
   };
 
   return (
-    <button onClick={handleRemove} disabled={isProcessing}>
-      Delete Repository
+    <button className="button button-danger" onClick={handleRemove} disabled={isProcessing}>
+      Delete repository
     </button>
   );
 };
